@@ -1,45 +1,43 @@
 name: Build macOS Release
 
-# 允许手动触发工作流
 on: 
   workflow_dispatch:
 
 jobs:
   build:
-    # 使用 GitHub 提供的免费 macOS 虚拟机
-    runs-on: macos-latest
+    # 强制使用最新的 macOS 14 (M1 芯片) 环境，自带较新版本的 Xcode SDK
+    runs-on: macos-14
 
     steps:
-      # 1. 获取源码
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. 配置 Flutter 环境
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      # 3. 开启 macOS 编译支持并获取依赖
-      - name: Install dependencies
+      - name: Fix Deployment Target & Install dependencies
         run: |
           flutter config --enable-macos-desktop
           cd simple_live_app
+          
+          # 关键修复：强制将 macOS 最低部署版本从 10.11 提升到 10.14
+          find macos -type f -name "project.pbxproj" -exec sed -i '' 's/MACOSX_DEPLOYMENT_TARGET = 10.[0-9]*/MACOSX_DEPLOYMENT_TARGET = 10.14/g' {} +
+          find macos -type f -name "Podfile" -exec sed -i '' 's/platform :osx, .*/platform :osx, "10.14"/g' {} +
+          
           flutter pub get
 
-      # 4. 编译 macOS 应用
       - name: Build macOS app
         run: |
           cd simple_live_app
           flutter build macos --release
 
-      # 5. 打包应用以保留权限
       - name: Zip the app bundle
         run: |
           cd simple_live_app/build/macos/Build/Products/Release/
           zip -r simple_live_app_macOS.zip simple_live_app.app
 
-      # 6. 上传编译好的文件供你下载
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
